@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Llamarada — Pizzas al Horno de Leña · El Prat de Llobregat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --red:   #DC2626;
+      --red2:  #F87171;
+      --gold:  #CA8A04;
+      --bg:    #FEF2F2;
+      --deep:  #450A0A;
+      --mid:   #7f3030;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: var(--bg);
+      color: var(--deep);
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3 { font-family: 'Montserrat', sans-serif; }
+
+    /* ── Progress bar ── */
+    #progress-bar {
+      position: fixed; top: 0; left: 0;
+      height: 3px; width: 0%;
+      background: linear-gradient(90deg, var(--red), var(--gold));
+      z-index: 300;
+      pointer-events: none;
+    }
+
+    /* ── Navbar ── */
+    nav {
+      position: fixed;
+      top: 14px; left: 14px; right: 14px;
+      z-index: 200;
+      transition: top 350ms cubic-bezier(.4,0,.2,1);
+    }
+    nav.scrolled { top: 8px; }
+
+    .nav-inner {
+      max-width: 1120px; margin: 0 auto;
+      background: rgba(255,255,255,0.78);
+      backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+      border: 1.5px solid rgba(220,38,38,0.22);
+      border-radius: 100px;
+      padding: 6px 8px 6px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow:
+        0 4px 32px rgba(220,38,38,0.1),
+        0 1px 0 rgba(255,255,255,0.85) inset;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+    }
+    .nav-logo img {
+      height: 64px;
+      width: auto;
+      object-fit: contain;
+      transition: transform 260ms cubic-bezier(.4,0,.2,1);
+    }
+    .nav-logo:hover img {
+      transform: scale(1.05);
+    }
+
+    .nav-links {
+      display: flex; align-items: center; gap: 28px; list-style: none;
+    }
+    .nav-links a {
+      font-size: 0.78rem; font-weight: 600; color: var(--deep);
+      text-decoration: none; letter-spacing: 0.07em;
+      text-transform: uppercase;
+      transition: color 200ms;
+      position: relative;
+      padding-bottom: 4px;
+    }
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -1px; left: 50%;
+      width: 0; height: 1.5px;
+      background: linear-gradient(90deg, var(--red), var(--gold));
+      transform: translateX(-50%);
+      border-radius: 2px;
+      transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .nav-links a:hover { color: var(--red); }
+    .nav-links a:hover::after { width: 100%; }
+
+    .btn-reserve {
+      background: linear-gradient(135deg, var(--gold), #b45309);
+      color: #fff;
+      border: none; border-radius: 100px;
+      padding: 9px 18px;
+      font-family: 'Montserrat', sans-serif; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 7px;
+      box-shadow: 0 4px 16px rgba(202,138,4,0.38);
+      transition: box-shadow 220ms, transform 200ms, opacity 180ms;
+      min-height: 44px;
+    }
+    .btn-reserve:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(202,138,4,0.46);
+    }
+
+    .nav-burger {
+      display: none; background: none; border: none; cursor: pointer; padding: 6px;
+      min-width: 44px; min-height: 44px;
+      align-items: center; justify-content: center;
+    }
+
+    #mobile-menu {
+      display: none; max-width: 1120px; margin: 8px auto 0;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(220,38,38,0.11);
+      border-radius: 20px; padding: 20px 28px;
+      flex-direction: column; gap: 18px;
+    }
+    #mobile-menu.open { display: flex; }
+    #mobile-menu.open a {
+      animation: mobileMenuItemSlide 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    #mobile-menu.open a:nth-child(1) { animation-delay: 0.05s; }
+    #mobile-menu.open a:nth-child(2) { animation-delay: 0.1s; }
+    #mobile-menu.open a:nth-child(3) { animation-delay: 0.15s; }
+    #mobile-menu.open a:nth-child(4) { animation-delay: 0.2s; }
+    #mobile-menu.open a:nth-child(5) { animation-delay: 0.25s; }
+    
+    @keyframes mobileMenuItemSlide {
+      from { opacity: 0; transform: translateX(-15px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    #mobile-menu a {
+      font-size: 1rem; font-weight: 500; color: var(--deep);
+      text-decoration: none; padding: 4px 0;
+      min-height: 44px; display: flex; align-items: center;
+    }
+    #mobile-menu a:last-child { color: var(--red); font-weight: 700; }
+
+    /* ── Hero text parallax ── */
+    #hero-text-group {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; padding: 0 20px;
+      will-change: transform;
+    }
+
+    /* ── Video Hero ── */
+    #video-section {
+      position: relative;
+      height: 450vh;
+    }
+
+    #canvas-wrap {
+      position: sticky; top: 0;
+      width: 100%; height: 100vh;
+      overflow: hidden;
+    }
+
+    /* dark fallback while video decodes */
+    #canvas-wrap::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 55% 40%, #7f1d1d 0%, #1a0000 100%);
+      z-index: 0;
+    }
+
+    #three-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+    }
+
+    .hero-overlay {
+      position: absolute; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background:
+        radial-gradient(ellipse 82% 88% at 50% 46%, rgba(8,0,0,0.84) 0%, rgba(5,0,0,0.42) 52%, transparent 100%),
+        linear-gradient(180deg, rgba(22,2,2,0.56) 0%, transparent 22%, transparent 58%, rgba(254,242,242,0.96) 100%);
+      pointer-events: none;
+      text-align: center;
+      padding: 0 20px;
+    }
+
+    .hero-eyebrow {
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(0.6rem, 1.5vw, 0.72rem);
+      font-weight: 600; letter-spacing: 0.52em;
+      text-transform: uppercase;
+      color: rgba(255, 222, 150, 0.88);
+      margin-bottom: 0;
+      animation: heroFadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+    }
+
+    .hero-deco-line {
+      display: block;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(202,138,4,0.72), transparent);
+      margin: 22px auto;
+      animation: heroLineExpand 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+    }
+
+    /* Stacked headline */
+    .hero-line2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(4rem, 13vw, 10rem);
+      line-height: 0.88;
+      color: #fff;
+      text-shadow:
+        0 0 130px rgba(220,38,38,0.58),
+        0 0 60px rgba(202,138,4,0.48),
+        0 6px 28px rgba(0,0,0,0.72);
+      letter-spacing: -0.01em;
+      margin-bottom: 16px;
+      animation: heroFadeUp 1s cubic-bezier(0.22, 1, 0.36, 1) 0.55s both;
+    }
+
+    .hero-line3 {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 400;
+      font-size: clamp(0.95rem, 2.4vw, 1.35rem);
+      color: rgba(255, 248, 232, 0.92);
+      letter-spacing: 0.03em;
+      line-height: 1.45;
+      max-width: 520px;
+      margin: 0 auto;
+      animation: heroFadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both;
+    }
+
+    .hero-ornament {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin: 28px auto 0;
+      animation: heroFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.97s both;
+    }
+    .hero-ornament-line {
+      display: block;
+      width: 44px; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(202,138,4,0.68));
+    }
+    .hero-ornament-line:last-child {
+      background: linear-gradient(270deg, transparent, rgba(202,138,4,0.68));
+    }
+    .hero-ornament-diamond {
+      display: block;
+      width: 5px; height: 5px;
+      background: rgba(202,138,4,0.85);
+      transform: rotate(45deg);
+      flex-shrink: 0;
+    }
+
+    .hero-specialties {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      animation: heroFadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 1.08s both;
+    }
+    .hero-spec-item {
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(0.6rem, 1.35vw, 0.78rem);
+      font-weight: 600;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: rgba(255, 232, 160, 0.96);
+      padding: 4px 14px;
+    }
+    .hero-spec-sep {
+      color: rgba(202,138,4,0.72);
+      font-size: 1.1rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .hero-buttons {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      justify-content: center; align-items: center;
+      margin-top: 40px;
+      pointer-events: all;
+      animation: heroFadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 1.22s both;
+    }
+
+    .hero-cta {
+      background: var(--gold); color: #fff;
+      border: none; border-radius: 100px;
+      padding: 15px 36px;
+      font-family: 'Montserrat', sans-serif; font-size: 0.76rem;
+      font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+      transition: transform 280ms cubic-bezier(.4,0,.2,1), box-shadow 280ms;
+      box-shadow: 0 8px 32px rgba(202,138,4,0.4);
+      min-height: 44px;
+    }
+    .hero-cta:hover {
+      transform: translateY(-3px) scale(1.04);
+      box-shadow: 0 18px 44px rgba(202,138,4,0.48);
+    }
+
+    .hero-cta-secondary {
+      background: rgba(255,255,255,0.93); color: var(--deep);
+      border: 1.5px solid rgba(255,255,255,0.98); border-radius: 100px;
+      padding: 15px 36px;
+      font-family: 'Montserrat', sans-serif; font-size: 0.76rem;
+      font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+      transition: background 220ms, transform 280ms cubic-bezier(.4,0,.2,1), box-shadow 220ms;
+      min-height: 44px;
+    }
+    .hero-cta-secondary:hover {
+      background: #fff;
+      transform: translateY(-3px) scale(1.03);
+      box-shadow: 0 12px 36px rgba(0,0,0,0.22);
+    }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 32px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; flex-direction: column;
+      align-items: center; gap: 10px;
+      pointer-events: none;
+    }
+    .scroll-hint p {
+      font-size: 0.6rem; font-weight: 500;
+      letter-spacing: 0.3em; text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+    .scroll-arrow {
+      width: 18px; height: 18px;
+      border-right: 1.5px solid rgba(255,255,255,0.4);
+      border-bottom: 1.5px solid rgba(255,255,255,0.4);
+      transform: rotate(45deg);
+      animation: bounce 2s ease-in-out infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { opacity: 0.4; transform: rotate(45deg) translate(0,0); }
+      50%       { opacity: 0.9; transform: rotate(45deg) translate(3px,3px); }
+    }
+
+    @keyframes heroFadeUp {
+      from { opacity: 0; transform: translateY(28px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes heroLineExpand {
+      from { width: 0; opacity: 0; }
+      to   { width: 80px; opacity: 1; }
+    }
+
+    /* ── Layout helpers ── */
+    .section-wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    .label {
+      font-family: 'Montserrat', sans-serif; font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.38em; text-transform: uppercase; color: var(--gold);
+      margin-bottom: 10px;
+    }
+    .divider {
+      width: 44px; height: 2px;
+      background: linear-gradient(90deg, var(--red), var(--gold));
+      border-radius: 2px; margin-bottom: 18px;
+    }
+    .section-title {
+      font-size: clamp(2rem, 4.5vw, 3.2rem);
+      color: var(--deep); line-height: 1.08;
+    }
+
+    /* ── Glass ── */
+    .glass {
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(220,38,38,0.12);
+      border-radius: 22px;
+    }
+
+    /* ── Nosotros ── */
+    #nosotros { padding: 110px 0 80px; }
+    .intro-text {
+      max-width: 600px; font-size: 1.05rem; line-height: 1.8;
+      color: var(--mid); font-weight: 300; margin-top: 24px;
+    }
+
+    .pillars {
+      display: grid; grid-template-columns: repeat(3,1fr);
+      gap: 18px; margin-top: 52px;
+    }
+    .pillar {
+      padding: 36px 26px; text-align: center;
+      transition: transform 320ms cubic-bezier(.4,0,.2,1), box-shadow 320ms;
+      cursor: default;
+    }
+    .pillar:hover {
+      transform: translateY(-7px);
+      box-shadow: 0 26px 52px rgba(220,38,38,0.1);
+    }
+    .pillar-icon {
+      width: 54px; height: 54px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 22px;
+    }
+    .pillar h3 { font-size: 1rem; color: var(--deep); margin-bottom: 10px; }
+    .pillar p { font-size: 0.84rem; line-height: 1.7; color: var(--mid); font-weight: 300; }
+
+    /* ── Carta (Menu) ── */
+    #carta {
+      padding: 100px 0 110px;
+      background: linear-gradient(180deg, rgba(220,38,38,0.03) 0%, rgba(202,138,4,0.03) 100%);
+    }
+
+    .menu-intro {
+      max-width: 560px; font-size: 1rem; line-height: 1.75;
+      color: var(--mid); font-weight: 300; margin-top: 22px;
+    }
+
+    /* Featured row: spans 2 cols */
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin-top: 52px;
+    }
+
+    .menu-card {
+      padding: 32px 28px;
+      transition: transform 320ms cubic-bezier(.4,0,.2,1), box-shadow 320ms;
+      cursor: default;
+      position: relative;
+      overflow: hidden;
+    }
+    .menu-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 22px 48px rgba(220,38,38,0.1);
+    }
+    .menu-card.featured {
+      grid-column: span 2;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 0 28px;
+      border-color: rgba(202,138,4,0.3);
+      background: rgba(255,251,235,0.65);
+    }
+
+    .menu-badge {
+      position: absolute; top: 22px; right: 22px;
+      background: linear-gradient(135deg, var(--red), var(--gold));
+      color: #fff; border-radius: 100px;
+      padding: 3px 11px; font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase;
+    }
+
+    .menu-icon-wrap {
+      width: 48px; height: 48px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px; flex-shrink: 0;
+    }
+    .menu-card.featured .menu-icon-wrap { margin-bottom: 0; }
+
+    .menu-content h3 {
+      font-size: 1.05rem; color: var(--deep); margin-bottom: 8px;
+    }
+    .menu-content .desc {
+      font-size: 0.84rem; color: var(--mid); line-height: 1.65; font-weight: 300;
+      margin-bottom: 14px;
+    }
+    .menu-items {
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .menu-tag {
+      font-size: 0.72rem; font-weight: 500;
+      color: var(--mid); background: rgba(220,38,38,0.06);
+      border: 1px solid rgba(220,38,38,0.12);
+      border-radius: 100px; padding: 3px 11px;
+      letter-spacing: 0.02em;
+    }
+    .menu-card.featured .menu-tag {
+      background: rgba(202,138,4,0.07);
+      border-color: rgba(202,138,4,0.18);
+    }
+
+    .menu-cta { text-align: center; margin-top: 52px; }
+
+    /* ── Specialty Showcase ── */
+    .specialty-intro {
+      max-width: 520px; font-size: 1rem; line-height: 1.78;
+      color: var(--mid); font-weight: 300; margin-top: 22px;
+    }
+
+    .specialty-cards {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 20px; margin-top: 54px;
+    }
+
+    .spec-card {
+      position: relative; border-radius: 28px;
+      overflow: hidden; aspect-ratio: 3/4.2;
+      cursor: default; opacity: 0;
+      transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 380ms;
+    }
+
+    .spec-card.spec-visible {
+      animation: specCardIn 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .spec-card:nth-child(2).spec-visible { animation-delay: 0.13s; }
+    .spec-card:nth-child(3).spec-visible { animation-delay: 0.26s; }
+
+    @keyframes specCardIn {
+      from { opacity: 0; transform: translateY(46px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .spec-card.spec-visible:hover {
+      transform: translateY(-12px) scale(1.028);
+      box-shadow: 0 48px 80px rgba(0,0,0,0.32);
+    }
+
+    .spec-bg { position: absolute; inset: 0; z-index: 0; }
+
+    .spec-card--pizzas .spec-bg {
+      background:
+        radial-gradient(ellipse at 25% 78%, rgba(220,38,38,0.95) 0%, transparent 52%),
+        radial-gradient(ellipse at 78% 22%, rgba(202,138,4,0.72) 0%, transparent 52%),
+        linear-gradient(148deg, #7f1d1d 0%, #450A0A 100%);
+    }
+    .spec-card--carnes .spec-bg {
+      background:
+        radial-gradient(ellipse at 25% 78%, rgba(180,83,9,0.95) 0%, transparent 52%),
+        radial-gradient(ellipse at 78% 22%, rgba(146,64,14,0.72) 0%, transparent 52%),
+        linear-gradient(148deg, #431407 0%, #1c0a03 100%);
+    }
+    .spec-card--pasta .spec-bg {
+      background:
+        radial-gradient(ellipse at 25% 78%, rgba(202,138,4,0.95) 0%, transparent 52%),
+        radial-gradient(ellipse at 78% 22%, rgba(161,98,7,0.72) 0%, transparent 52%),
+        linear-gradient(148deg, #78350f 0%, #3d1a04 100%);
+    }
+
+    .spec-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 64%);
+      z-index: 1;
+    }
+
+    .spec-num {
+      position: absolute; top: 22px; right: 26px;
+      font-family: 'Playfair Display', serif;
+      font-size: 5.5rem; font-weight: 700;
+      color: rgba(255,255,255,0.09);
+      line-height: 1; z-index: 2; user-select: none;
+    }
+
+    .spec-body {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 32px 28px; z-index: 3;
+    }
+
+    .spec-icon-box {
+      width: 52px; height: 52px;
+      background: rgba(255,255,255,0.13);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 22px; backdrop-filter: blur(8px);
+      transition: background 280ms, transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .spec-card:hover .spec-icon-box {
+      background: rgba(255,255,255,0.24); transform: scale(1.1);
+    }
+
+    .spec-rule {
+      width: 28px; height: 2px;
+      background: rgba(255,255,255,0.48);
+      border-radius: 2px; margin-bottom: 16px;
+      transition: width 340ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .spec-card:hover .spec-rule { width: 54px; }
+
+    .spec-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.45rem, 2.5vw, 1.95rem);
+      color: #fff; line-height: 1.18; margin-bottom: 12px; font-weight: 700;
+    }
+    .spec-tagline {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.68rem; font-weight: 500;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: rgba(255,255,255,0.58); line-height: 1.5;
+    }
+
+    .specialty-cta { text-align: center; margin-top: 58px; }
+
+    .btn-primary {
+      display: inline-block; padding: 18px 48px;
+      border-radius: 100px;
+      background: linear-gradient(135deg, var(--red), var(--gold));
+      color: #fff; font-family: 'Montserrat', sans-serif;
+      font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.2em; text-transform: uppercase;
+      text-decoration: none; cursor: pointer;
+      transition: transform 260ms, box-shadow 260ms, opacity 200ms;
+      box-shadow: 0 8px 28px rgba(220,38,38,0.28);
+      min-height: 44px;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 44px rgba(220,38,38,0.32);
+      opacity: 0.91;
+    }
+
+    /* ── Horario & Contacto ── */
+    #info { padding: 100px 0; }
+
+    .info-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 44px; margin-top: 60px;
+    }
+
+    .col-label {
+      font-size: 0.64rem; font-weight: 700;
+      letter-spacing: 0.38em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 6px;
+    }
+    .col-title { font-size: 1.75rem; color: var(--deep); margin-bottom: 28px; }
+
+    .hours-card { padding: 32px 30px; }
+    .hour-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 0; border-bottom: 1px solid rgba(220,38,38,0.07);
+      font-size: 0.86rem;
+    }
+    .hour-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .hour-row:first-child { padding-top: 0; }
+    .hour-day { font-weight: 500; color: var(--deep); }
+    .hour-time { color: var(--mid); font-weight: 300; text-align: right; }
+    .hour-closed { color: var(--red); font-weight: 700; font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    .contact-card { padding: 32px 30px; }
+    .contact-row {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 26px; text-decoration: none;
+      min-height: 44px;
+    }
+    .contact-row:last-child { margin-bottom: 0; }
+    .contact-icon {
+      width: 46px; height: 46px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: transform 200ms;
+    }
+    a.contact-row:hover .contact-icon { transform: scale(1.1); }
+    .contact-meta span {
+      display: block; font-size: 0.62rem; font-weight: 700;
+      letter-spacing: 0.32em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 3px;
+    }
+    .contact-meta strong { display: block; font-size: 0.98rem; font-weight: 600; color: var(--deep); }
+    .contact-meta small { font-size: 0.78rem; color: var(--mid); font-weight: 300; }
+
+    .contact-big-cta {
+      display: block; width: 100%; text-align: center;
+      padding: 17px; border-radius: 16px;
+      background: linear-gradient(135deg, var(--red), var(--gold));
+      color: #fff; font-family: 'Montserrat', sans-serif;
+      font-size: 0.9rem; font-weight: 700;
+      text-decoration: none; cursor: pointer;
+      margin-top: 28px;
+      transition: transform 260ms, box-shadow 260ms;
+      box-shadow: 0 8px 28px rgba(220,38,38,0.22);
+      min-height: 44px; display: flex; align-items: center; justify-content: center;
+    }
+    .contact-big-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 44px rgba(220,38,38,0.3);
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--deep);
+      padding: 64px 24px 40px; text-align: center;
+    }
+    footer .f-logo {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 1.55rem; color: var(--bg); letter-spacing: 0.07em;
+    }
+    footer .f-sub {
+      font-size: 0.78rem; color: rgba(254,242,242,0.5);
+      margin: 8px 0 28px; font-weight: 300; letter-spacing: 0.07em;
+    }
+    footer .f-links {
+      display: flex; justify-content: center; flex-wrap: wrap;
+      gap: 20px; margin-bottom: 30px;
+    }
+    footer .f-links a {
+      font-size: 0.78rem; color: rgba(254,242,242,0.6);
+      text-decoration: none; transition: color 180ms; cursor: pointer;
+      min-height: 44px; display: flex; align-items: center;
+    }
+    footer .f-links a:hover { color: var(--bg); }
+    footer .f-sep { color: rgba(254,242,242,0.2); }
+    footer .f-copy { font-size: 0.7rem; color: rgba(254,242,242,0.28); }
+
+    /* ── Como llegar button ── */
+    .btn-como-llegar {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 28px; border-radius: 100px;
+      border: 1.5px solid rgba(220,38,38,0.3);
+      color: var(--red); background: rgba(220,38,38,0.05);
+      font-family: 'Montserrat', sans-serif; font-size: 0.8rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      text-decoration: none; cursor: pointer;
+      transition: background 220ms, border-color 220ms, transform 220ms;
+      min-height: 44px;
+    }
+    .btn-como-llegar:hover {
+      background: rgba(220,38,38,0.1);
+      border-color: rgba(220,38,38,0.55);
+      transform: translateY(-1px);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 800px) {
+      .nav-links, .btn-reserve { display: none; }
+      .nav-burger { display: flex; }
+      .pillars { grid-template-columns: 1fr; max-width: 480px; margin-left: auto; margin-right: auto; }
+      .menu-grid { grid-template-columns: 1fr; }
+      .menu-card.featured { grid-column: span 1; grid-template-columns: 1fr; }
+      .menu-card.featured .menu-icon-wrap { margin-bottom: 18px; }
+      .info-grid { grid-template-columns: 1fr; gap: 32px; }
+      .specialty-cards { grid-template-columns: 1fr; max-width: 440px; margin-left: auto; margin-right: auto; }
+      .spec-card { aspect-ratio: 4/3.2; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-line2 { font-size: clamp(3.4rem, 18vw, 5rem); }
+      #nosotros { padding: 80px 0 60px; }
+      #carta, #info { padding: 72px 0; }
+    }
+
+    /* ── Reduced motion ── */
+    @media (prefers-reduced-motion: reduce) {
+      .pillar, .menu-card, .hero-cta, .btn-primary,
+      .contact-big-cta, .btn-reserve { transition: none; }
+      .scroll-arrow { animation: none; }
+      .hero-eyebrow, .hero-deco-line, .hero-line2, .hero-line3,
+      .hero-ornament, .hero-specialties, .hero-buttons {
+        animation: none; opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="progress-bar" role="progressbar" aria-label="Progreso de la página"></div>
+
+  <!-- ═══ NAVBAR ═══ -->
+  <nav aria-label="Navegación principal">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo" aria-label="Llamarada — inicio">
+        <img src="Logo_Llamarada_nuevo.png" alt="Llamarada Logo">
+      </a>
+      <ul class="nav-links" role="list">
+        <li><a href="#nosotros">Nosotros</a></li>
+        <li><a href="carta.html">Carta</a></li>
+        <li><a href="domicilio.html">Domicilio</a></li>
+        <li><a href="#info">Horario</a></li>
+        <li><a href="#info">Contacto</a></li>
+      </ul>
+      <a href="tel:933705942" class="btn-reserve">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/>
+        </svg>
+        +34 93 370 59 42
+      </a>
+      <button class="nav-burger" aria-label="Abrir menú de navegación" aria-expanded="false" onclick="toggleMenu(this)">
+        <svg width="22" height="16" viewBox="0 0 22 16" fill="none" aria-hidden="true">
+          <rect y="0"  width="22" height="2" rx="1" fill="#450A0A"/>
+          <rect y="7"  width="22" height="2" rx="1" fill="#450A0A"/>
+          <rect y="14" width="22" height="2" rx="1" fill="#450A0A"/>
+        </svg>
+      </button>
+    </div>
+    <div id="mobile-menu" role="navigation" aria-label="Menú móvil">
+      <a href="#nosotros"      onclick="closeMenu()">Nosotros</a>
+      <a href="carta.html"     onclick="closeMenu()">Carta</a>
+      <a href="domicilio.html" onclick="closeMenu()">Domicilio</a>
+      <a href="#info"          onclick="closeMenu()">Horario &amp; Contacto</a>
+      <a href="tel:933705942">93 370 59 42</a>
+    </div>
+  </nav>
+
+  <!-- ═══ VIDEO HERO ═══ -->
+  <section id="video-section" aria-label="Vídeo hero">
+    <div id="canvas-wrap">
+      <canvas id="three-canvas" aria-hidden="true"></canvas>
+
+      <div class="hero-overlay">
+        <div id="hero-text-group">
+          <p class="hero-eyebrow">El Prat de Llobregat &nbsp;·&nbsp; Barcelona</p>
+          <span class="hero-deco-line" aria-hidden="true"></span>
+
+          <h1 class="hero-line2">Llamarada</h1>
+          <p class="hero-line3" aria-hidden="true">Disfruta de nuestra experiencia y buen hacer</p>
+
+          <div class="hero-ornament" aria-hidden="true">
+            <span class="hero-ornament-line"></span>
+            <span class="hero-ornament-diamond"></span>
+            <span class="hero-ornament-line"></span>
+          </div>
+
+          <div class="hero-specialties">
+            <span class="hero-spec-item">Pizzas al Horno de Leña</span>
+            <span class="hero-spec-sep">·</span>
+            <span class="hero-spec-item">Pasta Artesanal</span>
+            <span class="hero-spec-sep">·</span>
+            <span class="hero-spec-item">Carnes a la Brasa</span>
+          </div>
+
+          <div class="hero-buttons">
+            <a href="carta.html" class="hero-cta-secondary">Ver la Carta</a>
+            <a href="tel:933705942" class="hero-cta">Reservar Ahora</a>
+          </div>
+        </div>
+
+        <div class="scroll-hint">
+          <p>Desplázate para explorar</p>
+          <div class="scroll-arrow" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ MAIN ═══ -->
+  <main style="background: linear-gradient(180deg,#FEF2F2 0%,#FFF7ED 55%,#FEF2F2 100%);">
+
+    <!-- Nosotros -->
+    <section id="nosotros">
+      <div class="section-wrap">
+        <p class="label">Nuestra Historia</p>
+        <div class="divider"></div>
+        <h2 class="section-title">Fuego, Pasión<br>&amp; Tradición</h2>
+        <p class="intro-text">
+          En Llamarada, cada plato es el resultado de años de oficio y pasión por la cocina auténtica.
+          Desde nuestro horno de leña hasta tu mesa, traemos los sabores genuinos de la tradición
+          italiana al corazón de El Prat de Llobregat, con la calidez que solo se encuentra en casa.
+        </p>
+
+        <div class="pillars">
+          <div class="glass pillar" style="background: linear-gradient(rgba(255,255,255,0.82), rgba(255,255,255,0.95)), url('pizza_furnace.png') center / cover no-repeat;">
+            <div class="pillar-icon" style="background:linear-gradient(135deg,#DC2626,#F87171);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z"/>
+              </svg>
+            </div>
+            <h3>Horno de Leña</h3>
+            <p>Nuestras pizzas nacen en un horno de leña tradicional que aporta ese sabor ahumado inimitable y una masa perfectamente crujiente.</p>
+          </div>
+
+          <div class="glass pillar" style="background: linear-gradient(rgba(255,255,255,0.82), rgba(255,255,255,0.95)), url('spaghuetti.png') center / cover no-repeat;">
+            <div class="pillar-icon" style="background:linear-gradient(135deg,#CA8A04,#FCD34D);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <h3>Pasta Artesanal</h3>
+            <p>Elaboramos nuestra pasta fresca cada día, con recetas italianas de siempre y los mejores ingredientes del mercado.</p>
+          </div>
+
+          <div class="glass pillar" style="background: linear-gradient(rgba(255,255,255,0.82), rgba(255,255,255,0.95)), url('chiquipark.jpeg') center / cover no-repeat;">
+            <div class="pillar-icon" style="background:linear-gradient(135deg,#DC2626,#CA8A04);">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <h3>Para Toda la Familia</h3>
+            <p>Con nuestro ChiquiPark, los más pequeños disfrutan mientras los mayores viven una experiencia gastronómica inolvidable.</p>
+          </div>
+        </div>
+
+        <div style="margin-top:48px; text-align:center;">
+          <a href="como-llegar.html" class="btn-como-llegar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" style="flex-shrink:0;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
+            </svg>
+            Cómo Llegar
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Domicilio -->
+    <section id="domicilio-banner" style="padding: 100px 0;">
+      <div class="section-wrap">
+        <div style="background: linear-gradient(135deg, rgba(35,20,15,0.95) 0%, rgba(20,8,5,0.98) 100%), url('HD_Pizza_Frames/newPizzaVideo_108.png') no-repeat right 20% center / cover; border-radius: 32px; padding: 72px 56px; position: relative; overflow: hidden; box-shadow: 0 32px 64px rgba(0,0,0,0.15);">
+          
+          <div style="position: relative; z-index: 10; max-width: 480px;">
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #ea580c, #dc2626); color: #fff; padding: 8px 18px; border-radius: 100px; font-family: 'Montserrat', sans-serif; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M5 18H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.188c.553 0 1.077.26 1.408.703L9.5 9h5.5l1.64-2.46A2 2 0 0 1 18.3 6H21a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/>
+                <circle cx="8" cy="18" r="3"/>
+                <circle cx="18" cy="18" r="3"/>
+                <path d="M11 18h4"/>
+              </svg>
+              Servicio a Domicilio
+            </div>
+            
+            <h2 style="font-family: 'Playfair Display', serif; font-size: clamp(2.8rem, 5vw, 4.2rem); color: #fff; margin-top: 28px; line-height: 1.05; font-weight: 700;">
+              Te lo llevamos<br>a casa
+            </h2>
+            
+            <p style="font-family: 'Montserrat', sans-serif; color: rgba(255,255,255,0.85); font-size: 1.15rem; line-height: 1.6; margin-top: 24px; font-weight: 300;">
+              Todos los días de 13 a 16 h y de 20 a 23:30 h. Excepto vísperas y festivos.
+            </p>
+            
+            <a href="tel:933705942" style="display: inline-flex; align-items: center; gap: clamp(8px, 2vw, 14px); background: linear-gradient(135deg, #ea580c, #dc2626); color: #fff; padding: clamp(12px, 3vw, 18px) clamp(20px, 5vw, 36px); border-radius: 100px; text-decoration: none; font-family: 'Montserrat', sans-serif; font-size: clamp(1.1rem, 4.5vw, 1.45rem); white-space: nowrap; font-weight: 700; margin-top: 40px; box-shadow: 0 12px 32px rgba(220,38,38,0.35); transition: transform 200ms, box-shadow 200ms;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 18px 40px rgba(220,38,38,0.45)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 12px 32px rgba(220,38,38,0.35)'">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/>
+              </svg>
+              93 370 59 42
+            </a>
+            
+            <br>
+            <a href="domicilio.html" style="display: inline-flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); font-family: 'Montserrat', sans-serif; text-decoration: none; font-size: 1rem; font-weight: 400; margin-top: 36px; transition: color 200ms;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">
+              Más información
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Horario & Contacto -->
+    <section id="info">
+      <div class="section-wrap">
+        <p class="label">Encuéntranos</p>
+        <div class="divider"></div>
+        <h2 class="section-title">Horario &amp;<br>Contacto</h2>
+
+        <div class="info-grid">
+
+          <div>
+            <p class="col-label">Estamos Abiertos</p>
+            <h3 class="col-title">Horario</h3>
+            <div class="glass hours-card">
+              <div class="hour-row">
+                <span class="hour-day">Lunes</span>
+                <span class="hour-time">13:00–15:30 &nbsp;·&nbsp; 20:00–23:30</span>
+              </div>
+              <div class="hour-row">
+                <span class="hour-day">Martes</span>
+                <span class="hour-closed">Cerrado</span>
+              </div>
+              <div class="hour-row">
+                <span class="hour-day">Miércoles</span>
+                <span class="hour-time">20:00–23:30</span>
+              </div>
+              <div class="hour-row">
+                <span class="hour-day">Jueves</span>
+                <span class="hour-time">13:00–15:30 &nbsp;·&nbsp; 20:00–23:30</span>
+              </div>
+              <div class="hour-row">
+                <span class="hour-day">Viernes</span>
+                <span class="hour-time">13:00–15:30 &nbsp;·&nbsp; 20:00–23:30</span>
+              </div>
+              <div class="hour-row">
+                <span class="hour-day">Sábado</span>
+                <span class="hour-time">13:00–15:30 &nbsp;·&nbsp; 20:00–23:30</span>
+              </div>
+              <div class="hour-row">
+                <span class="hour-day">Domingo</span>
+                <span class="hour-time">13:00–15:30 &nbsp;·&nbsp; 20:00–23:30</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p class="col-label">Contáctanos</p>
+            <h3 class="col-title">Contacto</h3>
+            <div class="glass contact-card">
+
+              <a href="tel:933705942" class="contact-row" style="cursor:pointer;">
+                <div class="contact-icon" style="background:linear-gradient(135deg,#DC2626,#F87171);">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/>
+                  </svg>
+                </div>
+                <div class="contact-meta">
+                  <span>Teléfono</span>
+                  <strong>93 370 59 42</strong>
+                  <small>Reservas y pedidos</small>
+                </div>
+              </a>
+
+              <div class="contact-row">
+                <div class="contact-icon" style="background:linear-gradient(135deg,#CA8A04,#FCD34D);">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
+                  </svg>
+                </div>
+                <div class="contact-meta">
+                  <span>Ubicación</span>
+                  <strong>El Prat de Llobregat</strong>
+                  <small>Barcelona, España</small>
+                </div>
+              </div>
+
+              <div class="contact-row">
+                <div class="contact-icon" style="background:linear-gradient(135deg,#F87171,#DC2626);">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"/>
+                  </svg>
+                </div>
+                <div class="contact-meta">
+                  <span>Reparto</span>
+                  <strong>Servicio a Domicilio</strong>
+                  <small>Llama durante el horario de apertura</small>
+                </div>
+              </div>
+            </div>
+
+            <a href="tel:933705942" class="contact-big-cta">Hacer una Reserva</a>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══ FOOTER ═══ -->
+  <footer>
+    <p class="f-logo">Llamarada</p>
+    <p class="f-sub">Pizzas al Horno de Leña &nbsp;·&nbsp; Pasta Artesanal &nbsp;·&nbsp; El Prat de Llobregat</p>
+    <div class="f-links">
+      <a href="#nosotros">Nosotros</a>
+      <span class="f-sep">·</span>
+      <a href="carta.html">Carta</a>
+      <span class="f-sep">·</span>
+      <a href="#info">Horario</a>
+      <span class="f-sep">·</span>
+      <a href="tel:933705942">93 370 59 42</a>
+    </div>
+    <p class="f-copy">&copy; 2026 Restaurante Llamarada. Todos los derechos reservados.</p>
+    <div style="margin-top: 12px; display: flex; justify-content: center; gap: 14px;">
+      <a href="https://restaurantellamarada.com/politica-de-privacidad/" target="_blank" style="color: rgba(254,242,242,0.4); text-decoration: none; font-size: 0.65rem; transition: color 200ms;" onmouseover="this.style.color='rgba(254,242,242,0.8)'" onmouseout="this.style.color='rgba(254,242,242,0.4)'">Política de Privacidad</a>
+      <span style="color: rgba(254,242,242,0.2); font-size: 0.65rem;">·</span>
+      <a href="https://restaurantellamarada.com/politica-de-cookies-ue/" target="_blank" style="color: rgba(254,242,242,0.4); text-decoration: none; font-size: 0.65rem; transition: color 200ms;" onmouseover="this.style.color='rgba(254,242,242,0.8)'" onmouseout="this.style.color='rgba(254,242,242,0.4)'">Política de Cookies</a>
+    </div>
+  </footer>
+
+  <!-- ═══ THREE.JS — SCROLL-DRIVEN VIDEO (ultra-smooth) ═══ -->
+  <script>
+  (function () {
+    const canvas  = document.getElementById('three-canvas');
+    const section = document.getElementById('video-section');
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 10);
+    camera.position.z = 1;
+
+    /* ── Image Sequence ── */
+    const numFrames = 60;
+    const images = [];
+    let imagesLoaded = 0;
+    
+    // Create a dummy 1x1 canvas for the initial texture
+    const initCanvas = document.createElement('canvas');
+    initCanvas.width = 1; initCanvas.height = 1;
+    const ctx = initCanvas.getContext('2d');
+    ctx.fillStyle = '#450A0A';
+    ctx.fillRect(0, 0, 1, 1);
+    
+    const seqTexture = new THREE.CanvasTexture(initCanvas);
+    seqTexture.minFilter = THREE.LinearFilter;
+    seqTexture.magFilter = THREE.LinearFilter;
+
+    // Load frames
+    for (let i = 1; i <= numFrames; i++) {
+      const img = new Image();
+      const num = i.toString().padStart(3, '0');
+      img.onload = () => {
+        imagesLoaded++;
+        if (imagesLoaded === 1) {
+          // Set aspect ratio based on the first loaded image
+          mat.uniforms.uVideoAspect.value = img.width / img.height;
+        }
+      };
+      img.src = `HD_Pizza_Frames/newPizzaVideo_${num}.png`;
+      images.push(img);
+    }
+
+    /* ── Fullscreen shader plane ── */
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTex:         { value: seqTexture },
+        uResolution:  { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+        uVideoAspect: { value: 16 / 9 },
+        uVignette:    { value: 0.52 },
+        uWarm:        { value: 0.11 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+      `,
+      fragmentShader: `
+        precision highp float;
+        uniform sampler2D uTex;
+        uniform vec2  uResolution;
+        uniform float uVideoAspect;
+        uniform float uVignette;
+        uniform float uWarm;
+        varying vec2 vUv;
+
+        void main() {
+          float sa = uResolution.x / uResolution.y;
+          float sc = sa / uVideoAspect;
+          vec2 uv  = vUv;
+          if (sc > 1.0) uv.x = (uv.x - 0.5) * sc + 0.5;
+          else          uv.y = (uv.y - 0.5) / sc + 0.5;
+          uv = clamp(uv, 0.0, 1.0);
+
+          vec4 c = texture2D(uTex, uv);
+          c.r = min(c.r * (1.0 + uWarm), 1.0);
+          c.b = c.b * (1.0 - uWarm * 0.5);
+
+          vec2 vig = vUv * (1.0 - vUv);
+          float v  = clamp(pow(vig.x * vig.y * 16.0, uVignette), 0.0, 1.0);
+          c.rgb   *= v;
+
+          float bot = smoothstep(0.52, 0.0, vUv.y);
+          c.rgb = mix(c.rgb, vec3(0.04, 0.003, 0.003), bot * 0.58);
+
+          gl_FragColor = vec4(c.rgb, 1.0);
+        }
+      `
+    });
+
+    scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
+
+    /* ── Smooth scroll-driven seeking ── */
+    let targetFrame = 0;
+    let smoothFrame = 0;
+    const LERP = 0.13;
+
+    function scrollFraction() {
+      const h = section.offsetHeight - window.innerHeight;
+      return Math.max(0, Math.min(1, window.scrollY / h));
+    }
+
+    const heroGroup = document.getElementById('hero-text-group');
+
+    window.addEventListener('scroll', () => {
+      const sy = window.scrollY;
+
+      targetFrame = scrollFraction() * (numFrames - 1);
+
+      // Parallax: hero text drifts up at 28% of scroll speed
+      if (heroGroup) {
+        heroGroup.style.transform = `translateY(${sy * -0.28}px)`;
+      }
+
+      // progress bar
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      document.getElementById('progress-bar').style.width =
+        (sy / total * 100).toFixed(2) + '%';
+
+      // navbar tint
+      document.querySelector('nav').classList.toggle('scrolled', sy > 60);
+    }, { passive: true });
+
+    /* ── Render loop ── */
+    let lastFrameIndex = -1;
+    function render() {
+      requestAnimationFrame(render);
+
+      // Exponential ease toward target frame
+      smoothFrame += (targetFrame - smoothFrame) * LERP;
+      const currentFrameIndex = Math.min(numFrames - 1, Math.max(0, Math.round(smoothFrame)));
+
+      // If the frame changed and is loaded, update texture
+      if (currentFrameIndex !== lastFrameIndex) {
+        const currentImg = images[currentFrameIndex];
+        if (currentImg && currentImg.complete && currentImg.naturalWidth !== 0) {
+          seqTexture.image = currentImg;
+          seqTexture.needsUpdate = true;
+          lastFrameIndex = currentFrameIndex;
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    render();
+
+    /* ── Resize ── */
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      mat.uniforms.uResolution.value.set(w, h);
+    });
+  }());
+
+  /* ── Specialty cards entrance ── */
+  (function () {
+    const cards = document.querySelectorAll('.spec-card');
+    if (!cards.length) return;
+    if ('IntersectionObserver' in window) {
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            e.target.classList.add('spec-visible');
+            obs.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.15 });
+      cards.forEach(c => obs.observe(c));
+    } else {
+      cards.forEach(c => c.classList.add('spec-visible'));
+    }
+  }());
+
+  /* ── Mobile menu ── */
+  function toggleMenu(btn) {
+    const open = document.getElementById('mobile-menu').classList.toggle('open');
+    btn.setAttribute('aria-expanded', String(open));
+  }
+  function closeMenu() {
+    document.getElementById('mobile-menu').classList.remove('open');
+    const btn = document.querySelector('.nav-burger');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  </script>
+</body>
+</html>
