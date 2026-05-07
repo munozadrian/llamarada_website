@@ -1,0 +1,10 @@
+# Large frame files (served from Cloudinary CDN)
+HD_Pizza_Frames/
+newPizzaVideo_frames.zip
+Exploded Frames pizza.zip
+
+# OS files
+.DS_Store
+
+# Upload scripts
+upload_frames.js
