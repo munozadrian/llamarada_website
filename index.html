@@ -20,7 +20,7 @@
       --mid:   #7f3030;
     }
 
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
 
     body {
       font-family: 'Montserrat', sans-serif;
@@ -46,6 +46,7 @@
       top: 14px; left: 14px; right: 14px;
       z-index: 200;
       transition: top 350ms cubic-bezier(.4,0,.2,1);
+      contain: layout style;
     }
     nav.scrolled { top: 8px; }
 
@@ -60,6 +61,7 @@
       box-shadow:
         0 4px 32px rgba(220,38,38,0.1),
         0 1px 0 rgba(255,255,255,0.85) inset;
+      will-change: backdrop-filter;
     }
 
     .nav-logo {
@@ -160,18 +162,22 @@
       display: flex; flex-direction: column; align-items: center;
       text-align: center; padding: 0 20px;
       will-change: transform;
+      transform: translateZ(0);
     }
 
     /* ── Video Hero ── */
     #video-section {
       position: relative;
       height: 450vh;
+      contain: layout style;
     }
 
     #canvas-wrap {
       position: sticky; top: 0;
       width: 100%; height: 100vh;
       overflow: hidden;
+      contain: strict;
+      touch-action: pan-y;
     }
 
     /* dark fallback while video decodes */
@@ -185,6 +191,7 @@
     #three-canvas {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
+      touch-action: pan-y;
     }
 
     .hero-overlay {
@@ -756,6 +763,19 @@
       #carta, #info { padding: 72px 0; }
     }
 
+    /* ── Mobile-specific perf tweaks ── */
+    @media (max-width: 800px) {
+      /* Lighter blur on mobile to reduce GPU compositing cost */
+      .nav-inner {
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+      #canvas-wrap {
+        /* Promote to own compositing layer */
+        transform: translateZ(0);
+      }
+    }
+
     /* ── Reduced motion ── */
     @media (prefers-reduced-motion: reduce) {
       .pillar, .menu-card, .hero-cta, .btn-primary,
@@ -1078,7 +1098,7 @@
 
     const isMobile = navigator.maxTouchPoints > 1 || window.innerWidth < 800;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, alpha: false });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -1095,8 +1115,9 @@
     let   needsRender    = true;
 
     // Cloudinary: deliver WebP/AVIF at appropriate resolution automatically
+    // Mobile: smaller images = faster texture uploads to GPU
     const imgTransform = isMobile
-      ? 'f_auto,q_auto:good,w_800/'
+      ? 'f_auto,q_auto:good,w_640/'
       : 'f_auto,q_auto:best/';
 
     const initCanvas = document.createElement('canvas');
@@ -1108,10 +1129,12 @@
     const seqTexture = new THREE.CanvasTexture(initCanvas);
     seqTexture.minFilter = THREE.LinearFilter;
     seqTexture.magFilter = THREE.LinearFilter;
+    seqTexture.generateMipmaps = false; // Saves GPU memory — we only show at native res
 
     for (let i = 0; i < numFrames; i++) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
+      img.decoding = 'async';  // Don't block main thread on decode
       const sourceFrame = i * frameStep + 1;
       const num = sourceFrame.toString().padStart(3, '0');
       img.onload = () => {
@@ -1128,6 +1151,8 @@
     }
 
     /* ── Fullscreen shader plane ── */
+    // Mobile: use mediump to reduce GPU shader time
+    const fragPrecision = isMobile ? 'mediump' : 'highp';
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uTex:         { value: seqTexture },
@@ -1141,7 +1166,7 @@
         void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
       `,
       fragmentShader: `
-        precision highp float;
+        precision ${fragPrecision} float;
         uniform sampler2D uTex;
         uniform vec2  uResolution;
         uniform float uVideoAspect;
@@ -1178,49 +1203,76 @@
     /* ── Smooth scroll-driven seeking ── */
     let targetFrame = 0;
     let smoothFrame = 0;
-    // Mobile: near-instant response — touch scrolling already has its own inertia
-    const LERP = isMobile ? 0.85 : 0.13;
+    // Mobile uses a higher LERP so frame updates track closely with touch inertia.
+    // The key insight: mobile momentum scroll already provides smoothing,
+    // so we follow it tightly instead of fighting it with our own heavy interpolation.
+    const LERP = isMobile ? 0.55 : 0.13;
+
+    // Cache section height — recompute only on resize
+    let sectionHeight = section.offsetHeight - window.innerHeight;
 
     function scrollFraction() {
-      const h = section.offsetHeight - window.innerHeight;
-      return Math.max(0, Math.min(1, window.scrollY / h));
+      return Math.max(0, Math.min(1, window.scrollY / sectionHeight));
     }
 
-    const heroGroup = document.getElementById('hero-text-group');
+    const heroGroup   = document.getElementById('hero-text-group');
+    const progressBar = document.getElementById('progress-bar');
+    const navEl       = document.querySelector('nav');
+
+    // ── Batched scroll handler ──
+    // Instead of doing DOM reads/writes in the scroll event (which can fire
+    // 100+ times/sec on mobile inertia scroll), we only capture scrollY
+    // and batch all DOM mutations into the existing rAF render loop.
+    let latestScrollY = 0;
+    let scrollDirty   = false;
 
     window.addEventListener('scroll', () => {
-      const sy = window.scrollY;
-
-      targetFrame = scrollFraction() * (numFrames - 1);
-
-      if (heroGroup) {
-        heroGroup.style.transform = `translateY(${sy * -0.28}px)`;
-      }
-
-      const total = document.documentElement.scrollHeight - window.innerHeight;
-      document.getElementById('progress-bar').style.width =
-        (sy / total * 100).toFixed(2) + '%';
-
-      document.querySelector('nav').classList.toggle('scrolled', sy > 60);
-      needsRender = true;
+      latestScrollY = window.scrollY;
+      scrollDirty   = true;
+      needsRender   = true;
     }, { passive: true });
 
     /* ── Render loop (dirty: only draws when something changed) ── */
+    let lastRenderedFrameIndex = -1; // Track what we last sent to GPU
+
     function render() {
       requestAnimationFrame(render);
 
+      // Process scroll data (read-only from cached value, no DOM reads)
+      if (scrollDirty) {
+        targetFrame = (latestScrollY / sectionHeight) * (numFrames - 1);
+        targetFrame = Math.max(0, Math.min(numFrames - 1, targetFrame));
+        scrollDirty = false;
+      }
+
       smoothFrame += (targetFrame - smoothFrame) * LERP;
-      const isSettled = Math.abs(targetFrame - smoothFrame) < 0.005;
+      const isSettled = Math.abs(targetFrame - smoothFrame) < 0.01;
 
       if (isSettled && !needsRender) return;
 
+      // ── Batch DOM writes here (runs at most once per frame) ──
+      if (heroGroup) {
+        heroGroup.style.transform = `translate3d(0,${latestScrollY * -0.28}px,0)`;
+      }
+
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      progressBar.style.width = (latestScrollY / total * 100).toFixed(1) + '%';
+
+      if (latestScrollY > 60) {
+        if (!navEl.classList.contains('scrolled')) navEl.classList.add('scrolled');
+      } else {
+        if (navEl.classList.contains('scrolled')) navEl.classList.remove('scrolled');
+      }
+
+      // ── Texture update — only when frame actually changes ──
       const currentFrameIndex = Math.min(numFrames - 1, Math.max(0, Math.round(smoothFrame)));
 
-      if (currentFrameIndex !== lastFrameIndex) {
+      if (currentFrameIndex !== lastRenderedFrameIndex) {
         const currentImg = images[currentFrameIndex];
         if (currentImg && currentImg.complete && currentImg.naturalWidth !== 0) {
           seqTexture.image = currentImg;
           seqTexture.needsUpdate = true;
+          lastRenderedFrameIndex = currentFrameIndex;
           lastFrameIndex = currentFrameIndex;
         }
       }
@@ -1230,14 +1282,19 @@
     }
     render();
 
-    /* ── Resize ── */
+    /* ── Resize (debounced) ── */
+    let resizeTimer;
     window.addEventListener('resize', () => {
-      const w = window.innerWidth, h = window.innerHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      mat.uniforms.uResolution.value.set(w, h);
-      needsRender = true;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const w = window.innerWidth, h = window.innerHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+        mat.uniforms.uResolution.value.set(w, h);
+        sectionHeight = section.offsetHeight - h;
+        needsRender = true;
+      }, 100);
     });
   }());
 
