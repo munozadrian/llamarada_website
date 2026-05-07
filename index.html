@@ -1076,8 +1076,10 @@
     const canvas  = document.getElementById('three-canvas');
     const section = document.getElementById('video-section');
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const isMobile = navigator.maxTouchPoints > 1 || window.innerWidth < 800;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
 
     const scene  = new THREE.Scene();
@@ -1085,34 +1087,43 @@
     camera.position.z = 1;
 
     /* ── Image Sequence ── */
-    const numFrames = 60;
-    const images = [];
-    let imagesLoaded = 0;
-    
-    // Create a dummy 1x1 canvas for the initial texture
+    // Mobile: load every 2nd frame (30 frames) — halves network load and memory
+    const frameStep   = isMobile ? 2 : 1;
+    const numFrames   = isMobile ? 30 : 60;
+    const images      = [];
+    let   lastFrameIndex = -1;
+    let   needsRender    = true;
+
+    // Cloudinary: deliver WebP/AVIF at appropriate resolution automatically
+    const imgTransform = isMobile
+      ? 'f_auto,q_auto:good,w_800/'
+      : 'f_auto,q_auto:best/';
+
     const initCanvas = document.createElement('canvas');
     initCanvas.width = 1; initCanvas.height = 1;
     const ctx = initCanvas.getContext('2d');
     ctx.fillStyle = '#450A0A';
     ctx.fillRect(0, 0, 1, 1);
-    
+
     const seqTexture = new THREE.CanvasTexture(initCanvas);
     seqTexture.minFilter = THREE.LinearFilter;
     seqTexture.magFilter = THREE.LinearFilter;
 
-    // Load frames
-    for (let i = 1; i <= numFrames; i++) {
+    for (let i = 0; i < numFrames; i++) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      const num = i.toString().padStart(3, '0');
+      const sourceFrame = i * frameStep + 1;
+      const num = sourceFrame.toString().padStart(3, '0');
       img.onload = () => {
-        imagesLoaded++;
-        if (imagesLoaded === 1) {
-          // Set aspect ratio based on the first loaded image
+        if (lastFrameIndex === -1) {
           mat.uniforms.uVideoAspect.value = img.width / img.height;
+          seqTexture.image = img;
+          seqTexture.needsUpdate = true;
+          lastFrameIndex = 0;
+          needsRender = true;
         }
       };
-      img.src = `https://res.cloudinary.com/dweqa9ddw/image/upload/llamarada/pizza_frames/newPizzaVideo_${num}`;
+      img.src = `https://res.cloudinary.com/dweqa9ddw/image/upload/${imgTransform}llamarada/pizza_frames/newPizzaVideo_${num}`;
       images.push(img);
     }
 
@@ -1167,7 +1178,8 @@
     /* ── Smooth scroll-driven seeking ── */
     let targetFrame = 0;
     let smoothFrame = 0;
-    const LERP = 0.13;
+    // Mobile: near-instant response — touch scrolling already has its own inertia
+    const LERP = isMobile ? 0.85 : 0.13;
 
     function scrollFraction() {
       const h = section.offsetHeight - window.innerHeight;
@@ -1181,30 +1193,29 @@
 
       targetFrame = scrollFraction() * (numFrames - 1);
 
-      // Parallax: hero text drifts up at 28% of scroll speed
       if (heroGroup) {
         heroGroup.style.transform = `translateY(${sy * -0.28}px)`;
       }
 
-      // progress bar
       const total = document.documentElement.scrollHeight - window.innerHeight;
       document.getElementById('progress-bar').style.width =
         (sy / total * 100).toFixed(2) + '%';
 
-      // navbar tint
       document.querySelector('nav').classList.toggle('scrolled', sy > 60);
+      needsRender = true;
     }, { passive: true });
 
-    /* ── Render loop ── */
-    let lastFrameIndex = -1;
+    /* ── Render loop (dirty: only draws when something changed) ── */
     function render() {
       requestAnimationFrame(render);
 
-      // Exponential ease toward target frame
       smoothFrame += (targetFrame - smoothFrame) * LERP;
+      const isSettled = Math.abs(targetFrame - smoothFrame) < 0.005;
+
+      if (isSettled && !needsRender) return;
+
       const currentFrameIndex = Math.min(numFrames - 1, Math.max(0, Math.round(smoothFrame)));
 
-      // If the frame changed and is loaded, update texture
       if (currentFrameIndex !== lastFrameIndex) {
         const currentImg = images[currentFrameIndex];
         if (currentImg && currentImg.complete && currentImg.naturalWidth !== 0) {
@@ -1215,6 +1226,7 @@
       }
 
       renderer.render(scene, camera);
+      if (isSettled) needsRender = false;
     }
     render();
 
@@ -1225,6 +1237,7 @@
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       mat.uniforms.uResolution.value.set(w, h);
+      needsRender = true;
     });
   }());
 
