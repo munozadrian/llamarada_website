@@ -1103,6 +1103,7 @@
     // Load frames
     for (let i = 1; i <= numFrames; i++) {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       const num = i.toString().padStart(3, '0');
       img.onload = () => {
         imagesLoaded++;
