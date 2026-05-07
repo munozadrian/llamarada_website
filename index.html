@@ -1107,42 +1107,44 @@
     camera.position.z = 1;
 
     /* ── Image Sequence ── */
-    // Mobile: load every 2nd frame (30 frames) — halves network load and memory
     const frameStep   = isMobile ? 2 : 1;
     const numFrames   = isMobile ? 30 : 60;
     const images      = [];
-    let   lastFrameIndex = -1;
-    let   needsRender    = true;
+    let   firstLoaded  = false;
+    let   needsRender  = true;
 
-    // Cloudinary: deliver WebP/AVIF at appropriate resolution automatically
-    // Mobile: smaller images = faster texture uploads to GPU
     const imgTransform = isMobile
       ? 'f_auto,q_auto:good,w_640/'
       : 'f_auto,q_auto:best/';
 
-    const initCanvas = document.createElement('canvas');
-    initCanvas.width = 1; initCanvas.height = 1;
-    const ctx = initCanvas.getContext('2d');
-    ctx.fillStyle = '#450A0A';
-    ctx.fillRect(0, 0, 1, 1);
-
-    const seqTexture = new THREE.CanvasTexture(initCanvas);
-    seqTexture.minFilter = THREE.LinearFilter;
-    seqTexture.magFilter = THREE.LinearFilter;
-    seqTexture.generateMipmaps = false; // Saves GPU memory — we only show at native res
+    /* ── Two textures for crossfade blending ── */
+    function makeTex() {
+      const c = document.createElement('canvas');
+      c.width = 1; c.height = 1;
+      const x = c.getContext('2d');
+      x.fillStyle = '#450A0A';
+      x.fillRect(0, 0, 1, 1);
+      const t = new THREE.CanvasTexture(c);
+      t.minFilter = THREE.LinearFilter;
+      t.magFilter = THREE.LinearFilter;
+      t.generateMipmaps = false;
+      return t;
+    }
+    const texA = makeTex();   // "current" frame texture
+    const texB = makeTex();   // "next" frame texture (for blending)
 
     for (let i = 0; i < numFrames; i++) {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.decoding = 'async';  // Don't block main thread on decode
+      img.decoding = 'async';
       const sourceFrame = i * frameStep + 1;
       const num = sourceFrame.toString().padStart(3, '0');
       img.onload = () => {
-        if (lastFrameIndex === -1) {
+        if (!firstLoaded) {
           mat.uniforms.uVideoAspect.value = img.width / img.height;
-          seqTexture.image = img;
-          seqTexture.needsUpdate = true;
-          lastFrameIndex = 0;
+          texA.image = img;  texA.needsUpdate = true;
+          texB.image = img;  texB.needsUpdate = true;
+          firstLoaded = true;
           needsRender = true;
         }
       };
@@ -1150,12 +1152,13 @@
       images.push(img);
     }
 
-    /* ── Fullscreen shader plane ── */
-    // Mobile: use mediump to reduce GPU shader time
+    /* ── Fullscreen shader with dual-texture crossfade ── */
     const fragPrecision = isMobile ? 'mediump' : 'highp';
     const mat = new THREE.ShaderMaterial({
       uniforms: {
-        uTex:         { value: seqTexture },
+        uTexA:        { value: texA },        // frame N
+        uTexB:        { value: texB },        // frame N+1
+        uBlend:       { value: 0.0 },         // 0 = show A, 1 = show B
         uResolution:  { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
         uVideoAspect: { value: 16 / 9 },
         uVignette:    { value: 0.52 },
@@ -1167,7 +1170,9 @@
       `,
       fragmentShader: `
         precision ${fragPrecision} float;
-        uniform sampler2D uTex;
+        uniform sampler2D uTexA;
+        uniform sampler2D uTexB;
+        uniform float uBlend;
         uniform vec2  uResolution;
         uniform float uVideoAspect;
         uniform float uVignette;
@@ -1182,7 +1187,11 @@
           else          uv.y = (uv.y - 0.5) / sc + 0.5;
           uv = clamp(uv, 0.0, 1.0);
 
-          vec4 c = texture2D(uTex, uv);
+          // Crossfade between adjacent frames for sub-frame smoothness
+          vec4 cA = texture2D(uTexA, uv);
+          vec4 cB = texture2D(uTexB, uv);
+          vec4 c  = mix(cA, cB, uBlend);
+
           c.r = min(c.r * (1.0 + uWarm), 1.0);
           c.b = c.b * (1.0 - uWarm * 0.5);
 
@@ -1203,26 +1212,20 @@
     /* ── Smooth scroll-driven seeking ── */
     let targetFrame = 0;
     let smoothFrame = 0;
-    // Mobile uses a higher LERP so frame updates track closely with touch inertia.
-    // The key insight: mobile momentum scroll already provides smoothing,
-    // so we follow it tightly instead of fighting it with our own heavy interpolation.
-    const LERP = isMobile ? 0.55 : 0.13;
+
+    // Frame-rate independent exponential smoothing.
+    // On mobile, use tighter tracking (higher speed) since touch inertia
+    // already provides smoothing — we don't want to add more lag on top.
+    const SMOOTH_SPEED = isMobile ? 12 : 6;  // higher = more responsive
 
     // Cache section height — recompute only on resize
     let sectionHeight = section.offsetHeight - window.innerHeight;
-
-    function scrollFraction() {
-      return Math.max(0, Math.min(1, window.scrollY / sectionHeight));
-    }
 
     const heroGroup   = document.getElementById('hero-text-group');
     const progressBar = document.getElementById('progress-bar');
     const navEl       = document.querySelector('nav');
 
     // ── Batched scroll handler ──
-    // Instead of doing DOM reads/writes in the scroll event (which can fire
-    // 100+ times/sec on mobile inertia scroll), we only capture scrollY
-    // and batch all DOM mutations into the existing rAF render loop.
     let latestScrollY = 0;
     let scrollDirty   = false;
 
@@ -1232,29 +1235,42 @@
       needsRender   = true;
     }, { passive: true });
 
-    /* ── Render loop (dirty: only draws when something changed) ── */
-    let lastRenderedFrameIndex = -1; // Track what we last sent to GPU
+    /* ── Render loop ── */
+    let lastIdxA = -1;   // which frame index is in texA right now
+    let lastIdxB = -1;   // which frame index is in texB right now
+    let prevTime = performance.now();
 
-    function render() {
+    function imgReady(idx) {
+      const im = images[idx];
+      return im && im.complete && im.naturalWidth !== 0;
+    }
+
+    function render(now) {
       requestAnimationFrame(render);
 
-      // Process scroll data (read-only from cached value, no DOM reads)
+      // Delta time in seconds (capped to avoid huge jumps after tab-switch)
+      const dt = Math.min((now - prevTime) / 1000, 0.05);
+      prevTime = now;
+
+      // Process scroll data
       if (scrollDirty) {
         targetFrame = (latestScrollY / sectionHeight) * (numFrames - 1);
         targetFrame = Math.max(0, Math.min(numFrames - 1, targetFrame));
         scrollDirty = false;
       }
 
-      smoothFrame += (targetFrame - smoothFrame) * LERP;
-      const isSettled = Math.abs(targetFrame - smoothFrame) < 0.01;
+      // Frame-rate independent exponential interpolation
+      // lerp factor = 1 - e^(-speed * dt)  — same visual result at 60Hz and 120Hz
+      const alpha = 1 - Math.exp(-SMOOTH_SPEED * dt);
+      smoothFrame += (targetFrame - smoothFrame) * alpha;
 
+      const isSettled = Math.abs(targetFrame - smoothFrame) < 0.005;
       if (isSettled && !needsRender) return;
 
-      // ── Batch DOM writes here (runs at most once per frame) ──
+      // ── DOM writes (batched, max once per frame) ──
       if (heroGroup) {
         heroGroup.style.transform = `translate3d(0,${latestScrollY * -0.28}px,0)`;
       }
-
       const total = document.documentElement.scrollHeight - window.innerHeight;
       progressBar.style.width = (latestScrollY / total * 100).toFixed(1) + '%';
 
@@ -1264,23 +1280,31 @@
         if (navEl.classList.contains('scrolled')) navEl.classList.remove('scrolled');
       }
 
-      // ── Texture update — only when frame actually changes ──
-      const currentFrameIndex = Math.min(numFrames - 1, Math.max(0, Math.round(smoothFrame)));
+      // ── Crossfade texture update ──
+      // smoothFrame is e.g. 7.3 → frame A = 7, frame B = 8, blend = 0.3
+      const clamped  = Math.max(0, Math.min(numFrames - 1, smoothFrame));
+      const idxA     = Math.floor(clamped);
+      const idxB     = Math.min(idxA + 1, numFrames - 1);
+      const blend    = clamped - idxA;  // fractional part: 0.0 → 1.0
 
-      if (currentFrameIndex !== lastRenderedFrameIndex) {
-        const currentImg = images[currentFrameIndex];
-        if (currentImg && currentImg.complete && currentImg.naturalWidth !== 0) {
-          seqTexture.image = currentImg;
-          seqTexture.needsUpdate = true;
-          lastRenderedFrameIndex = currentFrameIndex;
-          lastFrameIndex = currentFrameIndex;
-        }
+      // Only upload textures when the integer index actually changed
+      if (idxA !== lastIdxA && imgReady(idxA)) {
+        texA.image = images[idxA];
+        texA.needsUpdate = true;
+        lastIdxA = idxA;
       }
+      if (idxB !== lastIdxB && imgReady(idxB)) {
+        texB.image = images[idxB];
+        texB.needsUpdate = true;
+        lastIdxB = idxB;
+      }
+
+      mat.uniforms.uBlend.value = blend;
 
       renderer.render(scene, camera);
       if (isSettled) needsRender = false;
     }
-    render();
+    requestAnimationFrame(render);
 
     /* ── Resize (debounced) ── */
     let resizeTimer;
